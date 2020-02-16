@@ -103,12 +103,13 @@ namespace {
 
 int main() {
     std::cout << std::fixed << std::setprecision(7) << std::boolalpha;
-    BoolFun f = BoolFun::kushilevitz();
+    BoolFun f = BoolFun::parity(3, 0b11);
     // f.neg1p();
     f.print_fourier();
     f.print_fourier_01();
     std::cout << f.deg() << "\n";
     std::cout << f.adeg() << "\n";
+    std::cout << f.D() << "\n";
     return 0;
     // for (int i = 0; i < 8; ++i) {
     //     BoolFun fr = f.restrict(5, i&1).restrict(4,(i>>1)&1).restrict(1,(i>>2)&1);

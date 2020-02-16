@@ -59,7 +59,7 @@ public:
     // Randomly set all bits
     void randomize();
 
-    // Randomly set all by choosing num_ones random inputs to have value 1, all else 0
+    // Randomly set all by choosing num_ones random inputs to have value 1, else 0
     void choose_randomize(size_t num_ones);
 
     // Randomly set k pairs of bits each pair with even/odd Hamming weights
@@ -93,7 +93,7 @@ public:
     // Get Kushlevitz on 6 variables with deg(f) = 3 and s(f) = 6
     static BoolFun kushilevitz();
 
-    // Get not-all-equal function on size variables
+    // Get not-all-equal function on size variables (default size 3)
     static BoolFun nae(size_t size = 3);
 
     // Get uniformly random function of size
@@ -143,11 +143,14 @@ public:
 
     // Fractional bs (fbs)/fractional cert complexity (FC)
     double fbs(size_t pos) const;
-    // FBS/fc, outputs an optimal certificate to 'x_out'
+    // fbs/FC, outputs an optimal certificate to 'x_out'
     double fbs(size_t pos, std::vector<double>& x_out) const;
     double fbs() const;
     double fbs0() const;
     double fbs1() const;
+
+    // Minimum decision tree depth
+    size_t D() const;
 
     // Degree as a real polynomial
     size_t deg() const;

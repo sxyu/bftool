@@ -37,6 +37,40 @@ double BoolFun::fbs(size_t pos, std::vector<double>& x_out) const {
             LPSolverd::ConstVector(-1, input_size)).solve(x_out);
 }
 
+size_t BoolFun::D() const {
+    using DPScalar = uint64_t;
+    std::vector<DPScalar> dp(restriction_mask_size);
+    std::vector<uint8_t> have(restriction_mask_size);
+    for (size_t i = 0; i < restriction_mask_size; ++i) {
+        size_t tmp = i, pos = 0;
+        size_t p3j = 1;
+        bool non_restricted_cnt = 0;
+        dp[i] = std::numeric_limits<DPScalar>::max();
+        for (size_t j = 0; j < input_size; ++ j) {
+            size_t dig = tmp % 3;
+            if (dig == 2) {
+                // non restricted
+                have[i] = have[i - 2 * p3j] | have[i - p3j];
+                if (have[i] == 3) {
+                    dp[i] = std::min(dp[i], std::max(dp[i - 2 * p3j], dp[i - p3j]) + 1); // minimax
+                } else {
+                    dp[i] = 0;
+                }
+                non_restricted_cnt = 1;
+            } else if (dig == 1) {
+                pos |= (1ULL << j);
+            }
+            tmp /= 3;
+            p3j *= 3;
+        }
+        if (non_restricted_cnt == 0) {
+            have[i] |= 1 << (static_cast<int32_t>(at(pos)));
+            dp[i] = 0;
+        }
+    }
+    return dp.back();
+}
+
 size_t BoolFun::deg() const {
     const std::vector<double>& four = fourier(); 
     for (size_t i = four.size()-1; ~i; --i) {
