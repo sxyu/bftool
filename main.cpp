@@ -99,27 +99,23 @@ namespace {
             }
         }
     }
-
-    std::random_device r;
-    std::default_random_engine e1(r());
-    template<class T>
-    T randint(T a, T b) {
-        std::uniform_int_distribution<T> uniform_dist(a, b);
-        return uniform_dist(e1);
-    }
 }
 
 int main() {
     std::cout << std::fixed << std::setprecision(7) << std::boolalpha;
     BoolFun f = BoolFun::kushilevitz();
+    // f.neg1p();
     f.print_fourier();
-    std::cout << "\n";
-    for (int i = 0; i < 8; ++i) {
-        BoolFun fr = f.restrict(5, i&1).restrict(4,(i>>1)&1).restrict(1,(i>>2)&1);
-        fr.print_fourier();
-        std::cout << fr << "\n";
-        std::cout << "\n";
-    }
+    f.print_fourier_01();
+    std::cout << f.deg() << "\n";
+    std::cout << f.adeg() << "\n";
+    return 0;
+    // for (int i = 0; i < 8; ++i) {
+    //     BoolFun fr = f.restrict(5, i&1).restrict(4,(i>>1)&1).restrict(1,(i>>2)&1);
+    //     fr.print_fourier();
+    //     std::cout << fr << "\n";
+    //     std::cout << "\n";
+    // }
     // std::cout << f << "\n";
     // std::cout << f.restrict(0,0) << "\n";
     // std::cout << f.restrict(0,1).restrict(0,1).su() << "\n";
@@ -127,7 +123,7 @@ int main() {
     // BoolFun ff(5); //= BoolFun::random(3);//BoolFun::andn(3) * BoolFun::orn(3);
     // do {
     //     // std::cout << ff << "\n";
-    //     size_t rid = randint<size_t>(0, ff.input_size-1);
+    //     size_t rid = util::randint<size_t>(0, ff.input_size-1);
     //     BoolFun fr = ff.restrict(rid, 1);
     //     // std::cout << fr << "\n";
     //     BoolFun fr2 = ff.restrict(rid, 0);

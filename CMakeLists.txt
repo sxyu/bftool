@@ -54,6 +54,7 @@ include_directories(
 set(
   HEADERS
   ${INCLUDE_DIR}/boolfun.hpp
+  ${INCLUDE_DIR}/boolfun_macros.hpp
   ${INCLUDE_DIR}/lpsolver.hpp
   ${INCLUDE_DIR}/util.hpp
 )
@@ -62,6 +63,8 @@ set(
   SOURCES
   main.cpp
   boolfun.cpp
+  boolfun_real.cpp
+  boolfun_complexity.cpp
   util.cpp
 )
 

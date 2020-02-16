@@ -149,18 +149,21 @@ public:
     double fbs0() const;
     double fbs1() const;
 
-    // Degree as a real polynomial;
-    // if f2 is true (default false), computes degree as polynomial on F2 instead of R.
-    // Optionally, also output the real polynomial coefficients to poly
-    size_t deg(bool f2 = false, std::vector<int64_t>* poly = nullptr) const;
+    // Degree as a real polynomial
+    size_t deg() const;
 
     // Return Fourier polynomial coefficients
-    // (same degree as one from deg() but uses input {1,-1} rather than {0,1})
-    // useful since satisfies Parzeval's theorem (squares form prob. dist.)
-    std::vector<double> fourier() const;
+    const std::vector<double>& fourier() const;
 
-    // Print Fourier polynomial prettily, optionally passing a pre-computed polynomail
-    void print_fourier(const std::vector<double>* fourier_dist_poly = nullptr) const;
+    // Return polynomial (not really Fourier)
+    // {0,1}^n->{0,1} (which can be shown to have only int coeffs)
+    // f2: if true, outputs in F2
+    // deg_out: optionally, output the polynomial degree here
+    std::vector<int64_t> fourier_01(bool f2 = false, size_t* deg_out = nullptr) const;
+
+    // Print Fourier polynomial prettily, optionally passing a pre-computed polynomial
+    void print_fourier(const std::vector<double>* fourier_poly = nullptr) const;
+    void print_fourier_01(const std::vector<int64_t>* fourier_poly = nullptr, bool f2 = false) const;
 
     // Return probability distribution derived from
     // Fourier polynomial where each entry is the total probability
@@ -233,6 +236,8 @@ public:
 
     // Internal truth table data (advanced)
     std::vector<uint8_t> data;
+private:
+    mutable std::vector<double> fourier_data;
 };
 
 /** General Boolean function representation for {0,1}^n -> R.
@@ -269,6 +274,9 @@ public:
 
     // Negate all values
     void negate();
+
+    // Map 1->-1 and 0->1
+    void neg1p();
 
     // Take sign of all values (0 will be mapped to 1)
     void sgn();
@@ -307,7 +315,7 @@ public:
     double variance() const;
 
     // Return Fourier polynomial coefficients (parity basis)
-    std::vector<double> fourier() const;
+    const std::vector<double>& fourier() const;
 
     // Print Fourier polynomial prettily, optionally passing a pre-computed polynomail
     void print_fourier(const std::vector<double>* fourier_dist_poly = nullptr) const;
@@ -320,6 +328,12 @@ public:
     double s0() const;
     double s1() const;
 
+    // Degree as a real polynomial
+    size_t deg() const;
+
+    // Approximate degree as a real polynomial
+    size_t adeg(double eps0 = 1./3., double eps1 = 1./3.) const;
+
     // Size data
     size_t input_size, table_size, restriction_mask_size;
 
@@ -328,6 +342,8 @@ public:
 
     // Internal table data (advanced)
     std::vector<double> data;
+private:
+    mutable std::vector<double> fourier_data;
 };
 
 // Ostream operators, to output nice text when used with cout <<, etc.
