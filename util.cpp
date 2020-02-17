@@ -51,7 +51,7 @@ size_t intpow(size_t base, size_t expo) {
 
 // Random
 std::random_device r;
-std::default_random_engine e1(1);//r());
+std::default_random_engine e1(r());
 
 double uniform(double a, double b) {
     std::uniform_real_distribution<double> uniform_dist(a, b);

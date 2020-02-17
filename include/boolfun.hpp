@@ -1,8 +1,10 @@
 #include <cstdint>
 #include <ostream>
 #include <vector>
+#include <utility>
 
 namespace bftool {
+class RealBoolFun;
 /** Simple Boolean function representation for {0,1}^n -> {0,1}
  *  (smaller and faster for some operations) */
 class BoolFun {
@@ -36,6 +38,9 @@ public:
     // Set all bits to 'val' (val should be 0 or 1)
     BoolFun& operator=(int val);
 
+    // Set from value table (0 -> 0, not 0 -> 1)
+    BoolFun& operator=(const std::vector<int64_t>& tab);
+
     // Copy
     BoolFun& operator=(const BoolFun& val) =default;
 
@@ -47,14 +52,33 @@ public:
     bool operator[](size_t pos) const;
     bool at(size_t pos) const;
 
-    // Boolean function composition
+    // Take AND (F2 multiply) pointwise
+    BoolFun operator& (const BoolFun& other) const;
     BoolFun operator* (const BoolFun& other) const;
 
+    // Take OR pointwise
+    BoolFun operator| (const BoolFun& other) const;
+
+    // Take XOR (F2 add/+-1 multiply) pointwise
+    BoolFun operator^ (const BoolFun& other) const;
+    BoolFun operator+ (const BoolFun& other) const;
+    BoolFun operator- (const BoolFun& other) const;
+
+    // Boolean function composition
+    BoolFun operator% (const BoolFun& other) const;
+
+    // Exact equivalence check
+    bool operator== (const BoolFun& other) const;
+    bool operator!= (const BoolFun& other) const;
+
     // Invert all bits
-    void invert();
+    BoolFun& invert();
+
+    // Multiply point-wise by parity; optionally, provide subcube mask to make it parity on subset
+    BoolFun& mul_parity(size_t mask = -1);
 
     // Set to parity; provide subcube mask to make it parity on subset
-    void set_parity(size_t mask = -1);
+    BoolFun& set_parity(size_t mask = -1);
 
     // Randomly set all bits
     void randomize();
@@ -118,11 +142,17 @@ public:
     // Expectation
     double expectation() const;
 
+    // Entrywise sum
+    size_t sum() const;
+
     // Variance
     double variance() const;
 
     // Expectation as {+- 1}^n -> {+-1} polynomial
     double expectation_pm1() const;
+
+    // Entrywise sum as {+- 1}^n -> {+-1} polynomial
+    int64_t sum_pm1() const;
 
     // Variance as {+- 1}^n -> {+-1} polynomial
     double variance_pm1() const;
@@ -156,7 +186,10 @@ public:
     size_t deg() const;
 
     // Return Fourier polynomial coefficients
-    const std::vector<double>& fourier() const;
+    std::vector<double> fourier() const;
+
+    // Return Fourier polynomial as a real-valued Boolean function
+    RealBoolFun fourier_fun() const;
 
     // Return polynomial (not really Fourier)
     // {0,1}^n->{0,1} (which can be shown to have only int coeffs)
@@ -195,6 +228,9 @@ public:
     // optionally get basis for eigenspace of this eigenvalue.
     double lambda_eigen3(std::vector<std::vector<double> > * x_out = nullptr) const;
 
+    /** Get real-valued Boolean function with sensitivity at each point */
+    RealBoolFun sens_fun() const;
+
     // Compute spectrum of sensitivity graph using Eigen3
     std::vector<double> sens_spectrum() const;
 
@@ -218,6 +254,11 @@ public:
     // Print a styled version of the adjacency matrix of the sensitivity graph (upper triangular)
     void sens_print_adjmat() const;
 
+    // Bi-regularity of sensitivity graph, -1 if not biregular
+    // if big_first is true, always puts larger degree in pair first
+    // (else it is regularity of 0-parity, then 1-parity)
+    std::pair<int64_t, int64_t> sens_regular(bool big_first = false) const;
+
     // Basic lambda bounds based on sensitivity and Collatz-Wielandt
     double lambda_ub() const;
     double lambda_lb() const;
@@ -239,8 +280,6 @@ public:
 
     // Internal truth table data (advanced)
     std::vector<uint8_t> data;
-private:
-    mutable std::vector<double> fourier_data;
 };
 
 /** General Boolean function representation for {0,1}^n -> R.
@@ -248,7 +287,8 @@ private:
 class RealBoolFun {
 public:
     RealBoolFun(size_t size = 0, double init_val = 0);
-    RealBoolFun(const BoolFun& f);
+    /** Convert from {0,1} BoolFun. If neg1p is true, takes (-1)^val for each value */
+    RealBoolFun(const BoolFun& f, bool neg1p = false);
     RealBoolFun(const std::vector<double>& tab);
 
     // Set all bits to 'val'
@@ -269,27 +309,23 @@ public:
     double operator[](size_t pos) const;
     double at(size_t pos) const;
 
-    // Randomly set function values to u.a.r. [lo, hi)
-    void randomize(double lo = 0.0, double hi = 1.0);
+    // Multiply pointwise
+    RealBoolFun operator* (const RealBoolFun& other) const;
 
-    // Invert all values (1 - value)
-    void invert();
+    // Multiply pointwise by scalar
+    RealBoolFun operator* (double scalar) const;
 
-    // Negate all values
-    void negate();
+    // Divide pointwise
+    RealBoolFun operator/ (const RealBoolFun& other) const;
 
-    // Map 1->-1 and 0->1
-    void neg1p();
+    // Divide pointwise
+    RealBoolFun operator/ (double scalar) const;
 
-    // Take sign of all values (0 will be mapped to 1)
-    void sgn();
+    // Add pointwise
+    RealBoolFun operator+ (const RealBoolFun& other) const;
 
-    // Round all values
-    void round();
-
-    // Convert to a BoolFun
-    BoolFun sgn_to_boolfun() const;
-    BoolFun round_to_boolfun() const;
+    // Subtract pointwise
+    RealBoolFun operator- (const RealBoolFun& other) const;
 
     // Scale all values by a real
     RealBoolFun& operator *=(double t);
@@ -297,6 +333,34 @@ public:
     // Shift all values by a real
     RealBoolFun& operator +=(double t);
     RealBoolFun& operator -=(double t);
+
+    // Exact equivalence check
+    bool operator== (const RealBoolFun& other) const;
+    bool operator!= (const RealBoolFun& other) const;
+
+    // Randomly set function values to u.a.r. [lo, hi)
+    void randomize(double lo = 0.0, double hi = 1.0);
+
+    // Invert all values (1 - value)
+    RealBoolFun& invert();
+
+    // Negate all values
+    RealBoolFun& negate();
+
+    // Map 1->-1 and 0->1
+    RealBoolFun& neg1p();
+    // Map -1->1 and 1->0
+    RealBoolFun& inv_neg1p();
+
+    // Take sign of all values (0 will be mapped to 1)
+    RealBoolFun& sgn();
+
+    // Round all values
+    RealBoolFun& round();
+
+    // Convert to a BoolFun
+    BoolFun sgn_to_boolfun() const;
+    BoolFun round_to_boolfun() const;
 
     // Randomly set function values to Gaussian (mean, stddev)
     void gaussian_randomize(double mu = 0.0, double sigma = 1.0);
@@ -307,18 +371,24 @@ public:
     // Compute from real polynomial, where variables to take values in {+-1}
     static RealBoolFun from_poly_pm1(const std::vector<double>& poly);
 
-    // Get a random function with values u.a.r. in [lo, hi) 
+    // Get a random function with values u.a.r. in [lo, hi)
     static RealBoolFun random(size_t size, double lo = 0.0, double hi = 1.0);
 
     // ** General **
     // Expectation
     double expectation() const;
 
+    // Sum of entries
+    double sum() const;
+
     // Variance
     double variance() const;
 
     // Return Fourier polynomial coefficients (parity basis)
-    const std::vector<double>& fourier() const;
+    std::vector<double> fourier() const;
+
+    // Return Fourier polynomial as a real-valued Boolean function
+    RealBoolFun fourier_fun() const;
 
     // Print Fourier polynomial prettily, optionally passing a pre-computed polynomail
     void print_fourier(const std::vector<double>* fourier_dist_poly = nullptr) const;
@@ -345,8 +415,6 @@ public:
 
     // Internal table data (advanced)
     std::vector<double> data;
-private:
-    mutable std::vector<double> fourier_data;
 };
 
 // Ostream operators, to output nice text when used with cout <<, etc.

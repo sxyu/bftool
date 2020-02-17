@@ -3,6 +3,7 @@
 #include "util.hpp"
 #include "boolfun_macros.hpp"
 #include <cmath>
+#include <cassert>
 #include <iostream>
 #include <algorithm>
 #include "lpsolver.hpp"
@@ -10,6 +11,9 @@
 namespace {
 inline int64_t neg1p(int64_t val01) {
     return -(((val01 & 1) << 1) - 1);
+}
+inline int64_t inv_neg1p(int64_t val01) {
+    return (val01 >> 1) & 1;
 }
 }  // namespace
 
@@ -23,8 +27,11 @@ RealBoolFun::RealBoolFun(size_t input_size, double init_val) :
 
     data.resize(table_size, init_val);
 }
-RealBoolFun::RealBoolFun(const BoolFun& f) {
+RealBoolFun::RealBoolFun(const BoolFun& f, bool neg1p) {
     (*this) = f;
+    if (neg1p) {
+        this->neg1p();
+    }
 }
 RealBoolFun::RealBoolFun(const std::vector<double>& tab) {
     (*this) = tab;
@@ -71,6 +78,62 @@ double RealBoolFun::at(size_t pos) const {
     return data[pos];
 }
 
+RealBoolFun RealBoolFun::operator* (const RealBoolFun& other) const {
+    assert(input_size == other.input_size);
+    RealBoolFun prod = *this;
+    for (size_t i = 0; i < table_size; ++i) {
+        prod.data[i] = prod.data[i] * other.data[i];
+    }
+    return prod;
+}
+RealBoolFun RealBoolFun::operator* (double scalar) const {
+    RealBoolFun prod = *this;
+    return prod *= scalar;
+}
+
+RealBoolFun RealBoolFun::operator/ (const RealBoolFun& other) const {
+    assert(input_size == other.input_size);
+    RealBoolFun prod = *this;
+    for (size_t i = 0; i < table_size; ++i) {
+        prod.data[i] = prod.data[i] / other.data[i];
+    }
+    return prod;
+}
+
+RealBoolFun RealBoolFun::operator/ (double scalar) const {
+    RealBoolFun prod = *this;
+    for (size_t i = 0; i < table_size; ++i) {
+        prod.data[i] /= scalar;
+    }
+    return prod;
+}
+
+RealBoolFun RealBoolFun::operator+ (const RealBoolFun& other) const {
+    assert(input_size == other.input_size);
+    RealBoolFun prod = *this;
+    for (size_t i = 0; i < table_size; ++i) {
+        prod.data[i] = prod.data[i] + other.data[i];
+    }
+    return prod;
+}
+
+RealBoolFun RealBoolFun::operator- (const RealBoolFun& other) const {
+    assert(input_size == other.input_size);
+    RealBoolFun prod = *this;
+    for (size_t i = 0; i < table_size; ++i) {
+        prod.data[i] = prod.data[i] - other.data[i];
+    }
+    return prod;
+}
+
+bool RealBoolFun::operator== (const RealBoolFun& other) const {
+    assert(input_size == other.input_size);
+    return data == other.data;
+}
+bool RealBoolFun::operator!= (const RealBoolFun& other) const {
+    return !(*this == other);
+}
+
 void RealBoolFun::randomize(double lo, double hi) {
     for (size_t i = 0; i < table_size; ++i) {
         data[i] = util::uniform(lo, hi);
@@ -83,34 +146,46 @@ void RealBoolFun::gaussian_randomize(double mu, double sigma) {
     }
 }
 
-void RealBoolFun::invert() {
+RealBoolFun& RealBoolFun::invert() {
     for (size_t i = 0; i < table_size; ++i) {
         data[i] = 1.0 - data[i];
     }
+    return *this;
 }
 
-void RealBoolFun::negate() {
+RealBoolFun& RealBoolFun::negate() {
     for (size_t i = 0; i < table_size; ++i) {
         data[i] -= data[i];
     }
+    return *this;
 }
 
-void RealBoolFun::neg1p() {
+RealBoolFun& RealBoolFun::neg1p() {
     for (size_t i = 0; i < table_size; ++i) {
         data[i] = ::neg1p(static_cast<int64_t>(data[i]));
     }
+    return *this;
 }
 
-void RealBoolFun::sgn() {
+RealBoolFun& RealBoolFun::inv_neg1p() {
+    for (size_t i = 0; i < table_size; ++i) {
+        data[i] = ::inv_neg1p(static_cast<int64_t>(data[i]));
+    }
+    return *this;
+}
+
+RealBoolFun& RealBoolFun::sgn() {
     for (size_t i = 0; i < table_size; ++i) {
         data[i] = (data[i] >= 0.0 ? 1.0 : -1.0);
     }
+    return *this;
 }
 
-void RealBoolFun::round() {
+RealBoolFun& RealBoolFun::round() {
     for (size_t i = 0; i < table_size; ++i) {
         data[i] = std::round(data[i]);
     }
+    return *this;
 }
 
 BoolFun RealBoolFun::sgn_to_boolfun() const {
@@ -158,7 +233,7 @@ RealBoolFun& RealBoolFun::operator -=(double t) {
 }
 
 size_t RealBoolFun::deg() const {
-    const std::vector<double>& four = fourier(); 
+    const std::vector<double> four = fourier();
     for (size_t i = four.size()-1; ~i; --i) {
         if (four[i] != 0.0) {
             return util::popcount(i);
@@ -167,28 +242,32 @@ size_t RealBoolFun::deg() const {
     return 0;
 }
 
-const std::vector<double>& RealBoolFun::fourier() const {
-    if (fourier_data.empty()) {
-        fourier_data.resize(table_size);
-        if (input_size < 4) {
-            for (size_t s = 0; s < table_size; ++s) {
-                for (size_t i = 0; i < table_size; ++i) {
-                    double parity_val = -(((util::popcount(i&s) & 1) << 1) - 1);
-                    double f_val = data[i];
-                    fourier_data[s] += parity_val * f_val;
-                }
-                fourier_data[s] /= table_size;
-            }
-        }
-        else {
-            fourier_data = data;
-            fft(fourier_data);
+std::vector<double> RealBoolFun::fourier() const {
+    std::vector<double> fourier_data(table_size);
+    if (input_size < 4) {
+        for (size_t s = 0; s < table_size; ++s) {
             for (size_t i = 0; i < table_size; ++i) {
-                fourier_data[i] /= table_size;
+                double parity_val = -(((util::popcount(i&s) & 1) << 1) - 1);
+                double f_val = data[i];
+                fourier_data[s] += parity_val * f_val;
             }
+            fourier_data[s] /= table_size;
+        }
+    }
+    else {
+        fourier_data = data;
+        fft(fourier_data);
+        for (size_t i = 0; i < table_size; ++i) {
+            fourier_data[i] /= table_size;
         }
     }
     return fourier_data;
+}
+
+RealBoolFun RealBoolFun::fourier_fun() const {
+    RealBoolFun fun(input_size);
+    fun.data = fourier();
+    return fun;
 }
 
 size_t RealBoolFun::adeg(double eps0, double eps1) const {
@@ -336,11 +415,15 @@ static RealBoolFun random(size_t size, double lo = 0.0, double hi = 1.0) {
 }
 
 double RealBoolFun::expectation() const {
+    return sum() / table_size;
+}
+
+double RealBoolFun::sum() const {
     double ans = 0.;
     for (size_t x = 0; x < table_size; ++x) {
         ans += data[x];
     }
-    return ans / table_size;
+    return ans;
 }
 
 double RealBoolFun::variance() const {

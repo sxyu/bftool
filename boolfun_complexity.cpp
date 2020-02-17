@@ -18,6 +18,16 @@ inline int64_t neg1p(int64_t val01) {
 
 namespace bftool {
 
+size_t BoolFun::s(size_t pos) const {
+    size_t ans = 0;
+    size_t cur_val = at(pos);
+    for (size_t i = 0; i < input_size; ++i) {
+        size_t nei = pos ^ (1ULL << i);
+        ans += cur_val != at(nei);
+    }
+    return ans;
+}
+
 double BoolFun::fbs(size_t pos, std::vector<double>& x_out) const {
     LPSolverd::Matrix A;
     size_t cur_val = at(pos);
@@ -72,7 +82,7 @@ size_t BoolFun::D() const {
 }
 
 size_t BoolFun::deg() const {
-    const std::vector<double>& four = fourier(); 
+    const std::vector<double> four = fourier();
     for (size_t i = four.size()-1; ~i; --i) {
         if (four[i] != 0.0) {
             return util::popcount(i);
@@ -81,31 +91,35 @@ size_t BoolFun::deg() const {
     return 0;
 }
 
-const std::vector<double>& BoolFun::fourier() const {
-    if (fourier_data.empty()) {
-        fourier_data.resize(table_size);
-        if (input_size < 4) {
-            for (size_t s = 0; s < table_size; ++s) {
-                for (size_t i = 0; i < table_size; ++i) {
-                    int64_t parity_val = -(((util::popcount(i&s) & 1) << 1) - 1);
-                    int64_t f_val = -((static_cast<int64_t>(at(i)) << 1) - 1);
-                    fourier_data[s] += parity_val * f_val;
-                }
-                fourier_data[s] /= table_size;
+std::vector<double> BoolFun::fourier() const {
+    std::vector<double> fourier_data(table_size);
+    if (input_size < 4) {
+        for (size_t s = 0; s < table_size; ++s) {
+            for (size_t i = 0; i < table_size; ++i) {
+                int64_t parity_val = -(((util::popcount(i&s) & 1) << 1) - 1);
+                int64_t f_val = -((static_cast<int64_t>(at(i)) << 1) - 1);
+                fourier_data[s] += parity_val * f_val;
             }
+            fourier_data[s] /= table_size;
         }
-        else {
-            std::vector<int64_t> ans_i(table_size);
-            for (size_t i = 0; i < table_size; ++i) {
-                ans_i[i] = neg1p(at(i));
-            }
-            fft(ans_i);
-            for (size_t i = 0; i < table_size; ++i) {
-                fourier_data[i] = static_cast<double>(ans_i[i]) / table_size;
-            }
+    }
+    else {
+        std::vector<int64_t> ans_i(table_size);
+        for (size_t i = 0; i < table_size; ++i) {
+            ans_i[i] = neg1p(at(i));
+        }
+        fft(ans_i);
+        for (size_t i = 0; i < table_size; ++i) {
+            fourier_data[i] = static_cast<double>(ans_i[i]) / table_size;
         }
     }
     return fourier_data;
+}
+
+RealBoolFun BoolFun::fourier_fun() const {
+    RealBoolFun fun(input_size);
+    fun.data = fourier();
+    return fun;
 }
 
 std::vector<int64_t> BoolFun::fourier_01(bool f2, size_t* deg_out) const {
@@ -221,7 +235,7 @@ void BoolFun::print_fourier_01(const std::vector<int64_t>* fourier_poly, bool f2
 }
 
 std::vector<double> BoolFun::fourier_dist() const {
-    const std::vector<double>& poly = fourier();
+    const std::vector<double> poly = fourier();
     std::vector<double> poly_dist(input_size + 1);
     for (size_t i = 0; i < table_size; ++i) {
         poly_dist[util::popcount(i)] += poly[i] * poly[i];
@@ -236,7 +250,7 @@ double BoolFun::fourier_moment(double k,
         if (poly.empty()) return -std::numeric_limits<double>::infinity();
         return fourier_moment(k, poly);
     }
-    
+
     double ans = 0.0;
     for (size_t i = 0; i < fourier_dist_poly.size(); ++i) {
         ans += fourier_dist_poly[i] * pow(i, k);
@@ -418,6 +432,14 @@ double BoolFun::lambda_eigen3(std::vector<std::vector<double> > * x_out) const {
     return lam;
 }
 
+RealBoolFun BoolFun::sens_fun() const {
+    RealBoolFun fun(input_size);
+    for (size_t i = 0; i < table_size; ++i) {
+        fun.data[i] = s(i);
+    }
+    return fun;
+}
+
 std::vector<double> BoolFun::sens_spectrum() const {
     Eigen::MatrixXd A(table_size, table_size);
     A.setZero();
@@ -541,7 +563,7 @@ void BoolFun::sens_write_adjlist(const std::string& path, bool write_zero_deg_ve
     std::ofstream ofs(path);
     for (size_t i = 0; i < table_size; ++i) {
         size_t cur_val = at(i);
-        std::string iname = input_to_bin(i); 
+        std::string iname = input_to_bin(i);
         bool start = false;
         if (write_zero_deg_vert) {
             start = true;
@@ -554,7 +576,7 @@ void BoolFun::sens_write_adjlist(const std::string& path, bool write_zero_deg_ve
                     start = true;
                     ofs << iname << " ";
                 }
-                std::string jname = input_to_bin(j); 
+                std::string jname = input_to_bin(j);
                 ofs << jname << " ";
             }
         }
@@ -611,6 +633,29 @@ void BoolFun::sens_print_adjmat() const {
         }
         std::cout <<"\n";
     }
+}
+
+std::pair<int64_t, int64_t> BoolFun::sens_regular(bool big_first) const {
+    std::pair<int64_t, int64_t> ans(-1,-1);
+    for (size_t i = 0; i < table_size; ++i) {
+        size_t sens = s(i);
+        if (sens == 0) continue;
+        if (util::popcount(i) & 1) {
+            if (ans.second == -1) {
+                ans.second = sens;
+            } else if (ans.second != sens) {
+                return {-1, -1};
+            }
+        } else {
+            if (ans.first == -1) {
+                ans.first = sens;
+            } else if (ans.first != sens) {
+                return {-1, -1};
+            }
+        }
+    }
+    if (big_first && ans.first < ans.second) std::swap(ans.first, ans.second);
+    return ans;
 }
 
 double BoolFun::lambda_ub() const {

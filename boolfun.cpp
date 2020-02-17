@@ -1,6 +1,7 @@
 #include "boolfun.hpp"
 
 #include "util.hpp"
+#include <cassert>
 #include <cstring>
 #include <algorithm>
 #include <numeric>
@@ -55,6 +56,21 @@ BoolFun& BoolFun::operator=(int val) {
     std::memset(data.data(), -val, table_size_bytes);
     return *this;
 }
+
+BoolFun& BoolFun::operator=(const std::vector<int64_t>& tab) {
+    input_size = 0;
+    while ((1ULL << input_size) <= tab.size()) {
+        ++input_size;
+    }
+    --input_size;
+    table_size = (1ULL << input_size);
+    for (size_t i = 0; i < table_size; ++i) {
+        if (tab[i]) {
+            data[i >> 3] |= (1ULL << (i & 7));
+        }
+    }
+    return *this;
+}
 BoolFun::ValueSetter BoolFun::operator[](size_t pos) {
     pos &= table_size - 1;
     return BoolFun::ValueSetter(data[pos >> 3], uint8_t(1) << (pos & 7));
@@ -72,7 +88,43 @@ bool BoolFun::operator()(size_t pos) const {
     return at(pos);
 }
 
+BoolFun BoolFun::operator& (const BoolFun& other) const {
+    assert(input_size == other.input_size);
+    BoolFun prod = *this;
+    for (size_t i = 0; i < table_size_bytes; ++i) {
+        prod.data[i] = prod.data[i] & other.data[i];
+    }
+    return prod;
+}
 BoolFun BoolFun::operator* (const BoolFun& other) const {
+    return (*this) & other;
+}
+
+BoolFun BoolFun::operator| (const BoolFun& other) const {
+    assert(input_size == other.input_size);
+    BoolFun prod = *this;
+    for (size_t i = 0; i < table_size_bytes; ++i) {
+        prod.data[i] = prod.data[i] | other.data[i];
+    }
+    return prod;
+}
+
+BoolFun BoolFun::operator^ (const BoolFun& other) const {
+    assert(input_size == other.input_size);
+    BoolFun prod = *this;
+    for (size_t i = 0; i < table_size_bytes; ++i) {
+        prod.data[i] = prod.data[i] ^ other.data[i];
+    }
+    return prod;
+}
+BoolFun BoolFun::operator+ (const BoolFun& other) const {
+    return *this ^ other;
+}
+BoolFun BoolFun::operator- (const BoolFun& other) const {
+    return *this ^ other;
+}
+
+BoolFun BoolFun::operator% (const BoolFun& other) const {
     BoolFun composed(input_size * other.input_size);
     for (size_t i = 0; i < composed.table_size; ++i) {
         size_t tmp = i;
@@ -89,19 +141,38 @@ BoolFun BoolFun::operator* (const BoolFun& other) const {
     return composed;
 }
 
-void BoolFun::invert() {
+bool BoolFun::operator== (const BoolFun& other) const {
+    assert(input_size == other.input_size);
+    return data == other.data;
+}
+bool BoolFun::operator!= (const BoolFun& other) const {
+    return !(*this == other);
+}
+
+BoolFun& BoolFun::invert() {
     for (size_t i = 0; i < table_size_bytes; ++i) {
         data[i] ^= uint8_t(-1);
     }
+    return *this;
 }
 
-void BoolFun::set_parity(size_t mask) {
+BoolFun& BoolFun::mul_parity(size_t mask) {
+    for (size_t i = 0; i < table_size; ++i) {
+        if (util::popcount(i & mask) & 1) {
+            data[i >> 3] ^= (1ULL << (i & 7));
+        }
+    }
+    return *this;
+}
+
+BoolFun& BoolFun::set_parity(size_t mask) {
     std::memset(data.data(), 0, table_size_bytes);
     for (size_t i = 0; i < table_size; ++i) {
         if (util::popcount(i & mask) & 1) {
             data[i >> 3] |= (1ULL << (i & 7));
         }
     }
+    return *this;
 }
 
 void BoolFun::randomize() {
@@ -291,11 +362,15 @@ BoolFun BoolFun::restrict(size_t i, int val) {
 }
 
 double BoolFun::expectation() const {
+    return static_cast<double>(sum()) / table_size;
+}
+
+size_t BoolFun::sum() const {
     size_t ans = 0;
     for (size_t x = 0; x < table_size; ++x) {
         if(at(x)) ++ans;
     }
-    return static_cast<double>(ans) / table_size;
+    return ans;
 }
 
 double BoolFun::variance() const {
@@ -304,27 +379,21 @@ double BoolFun::variance() const {
 }
 
 double BoolFun::expectation_pm1() const {
+    return static_cast<double>(sum_pm1()) / table_size;
+}
+
+int64_t BoolFun::sum_pm1() const {
     int64_t ans = 0;
     for (size_t x = 0; x < table_size; ++x) {
         if(at(x)) ++ans;
         else --ans;
     }
-    return static_cast<double>(ans) / table_size;
+    return ans;
 }
 
 double BoolFun::variance_pm1() const {
     double ex = expectation();
     return 1.0 - ex * ex;
-}
-
-size_t BoolFun::s(size_t pos) const {
-    size_t ans = 0;
-    size_t cur_val = at(pos);
-    for (size_t i = 0; i < input_size; ++i) {
-        size_t nei = pos ^ (1ULL << i);
-        ans += cur_val != at(nei);
-    }
-    return ans;
 }
 
 size_t BoolFun::s0() const {
